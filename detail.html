@@ -697,7 +697,7 @@
         }
         cols.push(cur.trim());
         if (cols.length < 9) continue;
-        const dongVal  = parseNum(cols[1]);
+        const dongVal  = parseNum(String(cols[1]).replace(/동$/, '').trim());
         const floorVal = parseNum(cols[2]);
         if (!dongVal || !floorVal) continue;
         let gbn = cols[0];

@@ -113,6 +113,7 @@
     .f-tab.active-all   { background: #1a1a1a; color: #fff; }
     .f-tab.active-sale  { background: #5B4ED8; color: #fff; }
     .f-tab.active-lease { background: #2E9B87; color: #fff; }
+    .f-tab.active-rent  { background: #E07D3C; color: #fff; }
 
     /* ── Type filter bar ─────────────────── */
     .type-bar {
@@ -224,7 +225,9 @@
     .price-main { font-size: 16px; font-weight: 800; line-height: 1.25; }
     .price-main.p-sale  { color: #5B4ED8; }
     .price-main.p-lease { color: #2E9B87; }
+    .price-main.p-rent  { color: #E07D3C; }
     .price-sub { font-size: 11px; color: #2E9B87; font-weight: 600; margin-top: 2px; }
+    .price-sub.s-rent { color: #E07D3C; }
 
     .empty { text-align: center; padding: 60px 20px; color: #bbb; font-size: 14px; }
 
@@ -275,6 +278,15 @@
     }
     .popup-jeonse-label { font-size: 12px; color: #2E9B87; font-weight: 600; }
     .popup-jeonse-val   { font-size: 15px; color: #2E9B87; font-weight: 800; }
+    .popup-rent-wrap {
+      margin-top: 8px;
+      background: #fdf0e6; border-radius: 9px;
+      padding: 9px 12px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .popup-rent-row { display: flex; justify-content: space-between; align-items: center; }
+    .popup-rent-label { font-size: 12px; color: #E07D3C; font-weight: 600; }
+    .popup-rent-val   { font-size: 15px; color: #E07D3C; font-weight: 800; }
     .popup-close {
       width: 100%; margin-top: 16px;
       padding: 11px; border-radius: 9px;
@@ -300,6 +312,7 @@
   <div class="f-tab active-all" data-filter="all">전체</div>
   <div class="f-tab" data-filter="sale">매매</div>
   <div class="f-tab" data-filter="lease">전세</div>
+  <div class="f-tab" data-filter="rent">월세</div>
   <button class="dong-btn" id="dong-btn">
     <span class="dong-btn-text" id="dong-btn-text">동 선택</span>
     <span class="dong-btn-arrow">▾</span>
@@ -375,6 +388,18 @@ function parseNum(s, zeroAsNull = false) {
   return n;
 }
 
+function parseManWon(s) {
+  if (!s || s.trim() === '') return null;
+  s = String(s).replace(/,/g, '').trim();
+  if (s.includes('억')) {
+    const m = s.match(/^(\d+)억(\d+)?/);
+    if (!m) return null;
+    return parseInt(m[1]) * 10000 + (m[2] ? parseInt(m[2]) : 0);
+  }
+  const n = parseInt(s);
+  return isNaN(n) ? null : n;
+}
+
 function parseCSV(text) {
   const lines = text.trim().split('\n');
   const rows = [];
@@ -388,22 +413,35 @@ function parseCSV(text) {
     }
     cols.push(cur.trim());
     if (cols.length < 9) continue;
-    const dong  = parseNum(cols[1]);
-    const floor = parseNum(cols[2]);
-    if (!dong || !floor) continue;
-    let gbn = cols[0];
+    const dongVal  = parseNum(String(cols[1]).replace(/동$/, '').trim());
+    if (!dongVal) continue;
+    const floorRaw = String(cols[2]).trim();
+    const floorVal = parseNum(floorRaw);
+    const isWolse  = cols[0].trim() === '월세';
+    if (!isWolse && !floorVal) continue;
+    let gbn = cols[0].trim();
     if (gbn.includes('매매') && gbn.includes('전세')) gbn = '매매+전세';
     const type = (cols[5] && cols[5] !== '#REF!') ? cols[5] : (cols[9] && cols[9] !== '#REF!' ? cols[9] : null);
     if (!type) continue;
+    let jeonse = null, deposit = null, rent = null;
+    const amtRaw = cols[7] ? cols[7].trim() : '';
+    if (isWolse) {
+      const parts = amtRaw.split('/');
+      deposit = parseManWon(parts[0]);
+      rent    = parseNum(parts[1]);
+    } else {
+      jeonse = parseNum(amtRaw, true);
+    }
     rows.push({
       gbn,
-      dong,
-      floor,
+      dong:       dongVal,
+      floor:      floorVal,
+      floorLabel: floorVal ? null : floorRaw,
       type,
-      bun:   parseNum(cols[3]),
-      ext:   parseNum(cols[4]),
-      prem:  parseNum(cols[6]),
-      jeonse: parseNum(cols[7], true),
+      bun:    parseNum(cols[3]),
+      ext:    parseNum(cols[4]),
+      prem:   parseNum(cols[6]),
+      jeonse, deposit, rent,
       total:  parseNum(cols[8], true),
     });
   }
@@ -417,6 +455,7 @@ function matchFilter(item, filter) {
   if (filter === 'all')   return true;
   if (filter === 'sale')  return item.gbn.includes('매매') || item.gbn === '반반';
   if (filter === 'lease') return item.gbn.includes('전세');
+  if (filter === 'rent')  return item.gbn === '월세';
   return true;
 }
 
@@ -447,12 +486,12 @@ function renderCards() {
     )
     .sort((a, b) => {
       if (!currentSort) return 0;
-      const priceA = a.total ?? a.jeonse ?? 0;
-      const priceB = b.total ?? b.jeonse ?? 0;
+      const priceA = a.total ?? a.jeonse ?? a.deposit ?? 0;
+      const priceB = b.total ?? b.jeonse ?? b.deposit ?? 0;
       if (currentSort === 'price-desc') return priceB - priceA;
       if (currentSort === 'price-asc')  return priceA - priceB;
-      if (currentSort === 'floor-desc') return b.floor - a.floor;
-      if (currentSort === 'floor-asc')  return a.floor - b.floor;
+      if (currentSort === 'floor-desc') return (b.floor ?? 0) - (a.floor ?? 0);
+      if (currentSort === 'floor-asc')  return (a.floor ?? 0) - (b.floor ?? 0);
       return 0;
     });
   countBar.textContent = `총 ${filtered.length}건`;
@@ -463,18 +502,25 @@ function renderCards() {
   }
 
   filtered.forEach(item => {
-    const theme = cardTheme(item.gbn);
+    const theme    = cardTheme(item.gbn);
+    const isRent   = item.gbn === '월세';
     const hasSale  = item.gbn.includes('매매') || item.gbn === '반반';
     const hasLease = !!item.jeonse;
-    const showSale  = hasSale  && currentFilter !== 'lease';
-    const showLease = hasLease && currentFilter !== 'sale';
+    const showRent  = isRent  && currentFilter !== 'sale' && currentFilter !== 'lease';
+    const showSale  = hasSale  && currentFilter !== 'lease' && currentFilter !== 'rent';
+    const showLease = hasLease && currentFilter !== 'sale'  && currentFilter !== 'rent';
+
+    const floorDisplay = item.floorLabel ? item.floorLabel + '층' : item.floor + '층';
 
     // 오른쪽 가격 표시
-    let priceMain = '', priceMainClass = '', priceSub = '';
-    if (showSale && item.total) {
+    let priceMain = '', priceMainClass = '', priceSub = '', priceSubClass = '';
+    if (showRent) {
+      priceMain      = `${fmt(item.deposit)} / 월 ${(item.rent ?? 0).toLocaleString()}만`;
+      priceMainClass = 'p-rent';
+    } else if (showSale && item.total) {
       priceMain      = fmt(item.total);
       priceMainClass = 'p-sale';
-      if (showLease) priceSub = `전세 ${fmt(item.jeonse)}`;
+      if (showLease) { priceSub = `전세 ${fmt(item.jeonse)}`; priceSubClass = ''; }
     } else if (showLease) {
       priceMain      = fmt(item.jeonse);
       priceMainClass = 'p-lease';
@@ -482,12 +528,9 @@ function renderCards() {
 
     // 거래 배지
     let badges = '';
-    if (showSale) {
-      badges += `<span class="txn-badge sale">${item.gbn === '반반' ? '반반' : '매매'}</span>`;
-    }
-    if (showLease) {
-      badges += `<span class="txn-badge lease">전세</span>`;
-    }
+    if (showRent)  badges += `<span class="txn-badge rent">월세</span>`;
+    if (showSale)  badges += `<span class="txn-badge sale">${item.gbn === '반반' ? '반반' : '매매'}</span>`;
+    if (showLease) badges += `<span class="txn-badge lease">전세</span>`;
 
     const card = document.createElement('div');
     card.className = `card c-${theme}`;
@@ -495,14 +538,14 @@ function renderCards() {
       <div class="card-left">
         <div class="card-row1">
           <span class="dong-badge">${item.dong}동</span>
-          <span class="floor-text">${item.floor}층</span>
+          <span class="floor-text">${floorDisplay}</span>
           <span class="type-badge t${item.type}">${item.type}형</span>
         </div>
         <div class="card-row2">${badges}</div>
       </div>
       <div class="card-right">
         <div class="price-main ${priceMainClass}">${priceMain}</div>
-        ${priceSub ? `<div class="price-sub">${priceSub}</div>` : ''}
+        ${priceSub ? `<div class="price-sub ${priceSubClass}">${priceSub}</div>` : ''}
       </div>
     `;
     card.addEventListener('click', () => openPopup(item));
@@ -518,16 +561,34 @@ function openPopup(item) {
 
   const typeColor = { '59A': '#5B4ED8', '59B': '#1278CC', '84': '#E8603A' };
   const color = typeColor[item.type] || '#5B4ED8';
+  const floorDisplay = item.floorLabel ? item.floorLabel + '층' : item.floor + '층';
 
   titleEl.innerHTML =
     `<span style="color:${color}">${item.dong}동</span>` +
-    `<span>${item.floor}층</span>` +
+    `<span>${floorDisplay}</span>` +
     `<span style="color:${color};font-size:12px;font-weight:700">${item.type}형</span>`;
 
-  const hasSale  = (item.gbn.includes('매매') || item.gbn === '반반') && currentFilter !== 'lease';
-  const hasLease = !!item.jeonse && currentFilter !== 'sale';
+  const isRent   = item.gbn === '월세';
+  const hasSale  = (item.gbn.includes('매매') || item.gbn === '반반') && currentFilter !== 'lease' && currentFilter !== 'rent';
+  const hasLease = !!item.jeonse && currentFilter !== 'sale' && currentFilter !== 'rent';
+  const showRent = isRent && currentFilter !== 'sale' && currentFilter !== 'lease';
 
   let html = '';
+
+  if (showRent) {
+    html += `
+      <div class="popup-rent-wrap">
+        <div class="popup-rent-row">
+          <span class="popup-rent-label">보증금</span>
+          <span class="popup-rent-val">${fmt(item.deposit)}</span>
+        </div>
+        <div class="popup-rent-row">
+          <span class="popup-rent-label">월세</span>
+          <span class="popup-rent-val">월 ${(item.rent ?? 0).toLocaleString()}만원</span>
+        </div>
+      </div>
+    `;
+  }
 
   if (hasSale) {
     if (item.bun) {
