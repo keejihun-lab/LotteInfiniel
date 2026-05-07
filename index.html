@@ -878,15 +878,28 @@
 
       const min = Math.min(...prices);
       const max = Math.max(...prices);
-      const minLabel = currentTxn === 'rent' ? '최저월세' : '최저가';
-      const maxLabel = currentTxn === 'rent' ? '최고월세' : '최고가';
+
+      if (currentTxn === 'rent') {
+        const deposits = allListings
+          .filter(x => x.type === currentSubtype && x.gbn === '월세' && x.deposit != null)
+          .map(x => x.deposit);
+        const dMin = deposits.length ? Math.min(...deposits) : null;
+        const dMax = deposits.length ? Math.max(...deposits) : null;
+        box.innerHTML = `
+          <div class="pr-row"><span class="pr-label">최저월세</span><span class="pr-val">${fmtMan(min)}</span></div>
+          <div class="pr-row"><span class="pr-label">최고월세</span><span class="pr-val">${fmtMan(max)}</span></div>
+          ${dMin != null ? `<div class="pr-row"><span class="pr-label">보증금</span><span class="pr-val">${fmtMan(dMin)}~${fmtMan(dMax)}</span></div>` : ''}
+        `;
+        return;
+      }
+
       box.innerHTML = `
         <div class="pr-row">
-          <span class="pr-label">${minLabel}</span>
+          <span class="pr-label">최저가</span>
           <span class="pr-val">${fmtMan(min)}</span>
         </div>
         <div class="pr-row">
-          <span class="pr-label">${maxLabel}</span>
+          <span class="pr-label">최고가</span>
           <span class="pr-val">${fmtMan(max)}</span>
         </div>
       `;

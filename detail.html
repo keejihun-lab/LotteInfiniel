@@ -507,6 +507,45 @@
     .f-tab.active-all   { background: #1a1a1a; color: #fff; }
     .f-tab.active-sale  { background: #5B4ED8; color: #fff; }
     .f-tab.active-lease { background: #2E9B87; color: #fff; }
+    .f-tab.active-rent  { background: #E07D3C; color: #fff; }
+
+    /* ── 월세 섹션 ──────────────────── */
+    #wolse-section {
+      padding: 12px 14px 8px;
+      background: #fff;
+    }
+    .wolse-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #E07D3C;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1.5px solid #fde8d8;
+    }
+    .wolse-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #fdf5f0;
+      margin-bottom: 7px;
+      cursor: pointer;
+      border-left: 3px solid #E07D3C;
+    }
+    .wolse-item:active { opacity: 0.75; }
+    .wolse-left { display: flex; align-items: center; gap: 7px; }
+    .wolse-floor { font-size: 13px; font-weight: 700; color: #1a1a1a; }
+    .wolse-type {
+      font-size: 11px; font-weight: 700;
+      border-radius: 5px; padding: 2px 7px;
+    }
+    .wolse-type.t59A { background: #f0eeff; color: #5B4ED8; }
+    .wolse-type.t59B { background: #daeeff; color: #1278CC; }
+    .wolse-type.t84  { background: #fff0ec; color: #C43D1A; }
+    .wolse-price { text-align: right; }
+    .wolse-price-main { font-size: 13px; font-weight: 800; color: #E07D3C; }
+    .wolse-price-sub  { font-size: 11px; color: #aaa; margin-top: 1px; }
 
     /* ── Bottom button ──────────────── */
     .bottom-bar {
@@ -551,6 +590,7 @@
     <button class="f-tab active-all" data-filter="all">전체</button>
     <button class="f-tab" data-filter="sale">매매</button>
     <button class="f-tab" data-filter="lease">전세</button>
+    <button class="f-tab" data-filter="rent">월세</button>
   </div>
 
   <div id="grid-wrap">
@@ -560,6 +600,11 @@
       </thead>
       <tbody id="grid-body"></tbody>
     </table>
+  </div>
+
+  <div id="wolse-section" style="display:none">
+    <div class="wolse-title">월세 매물</div>
+    <div id="wolse-list"></div>
   </div>
 
   <div class="bottom-bar">
@@ -684,9 +729,21 @@
       return n;
     }
 
+    function parseManWon(s) {
+      if (!s || s.trim() === '') return null;
+      s = String(s).replace(/,/g, '').trim();
+      if (s.includes('억')) {
+        const m = s.match(/^(\d+)억(\d+)?/);
+        if (!m) return null;
+        return parseInt(m[1]) * 10000 + (m[2] ? parseInt(m[2]) : 0);
+      }
+      const n = parseInt(s);
+      return isNaN(n) ? null : n;
+    }
+
     function buildListingsData(text) {
       const lines = text.trim().split('\n');
-      const data = {};
+      const data = {}, wolse = {};
       for (let i = 1; i < lines.length; i++) {
         const cols = [];
         let cur = '', inQ = false;
@@ -697,29 +754,42 @@
         }
         cols.push(cur.trim());
         if (cols.length < 9) continue;
-        const dongVal  = parseNum(String(cols[1]).replace(/동$/, '').trim());
-        const floorVal = parseNum(cols[2]);
-        if (!dongVal || !floorVal) continue;
-        let gbn = cols[0];
+        const dongVal = parseNum(String(cols[1]).replace(/동$/, '').trim());
+        if (!dongVal) continue;
+        const floorRaw = String(cols[2]).trim();
+        const floorVal = parseNum(floorRaw);
+        const isWolse  = cols[0].trim() === '월세';
+        if (!isWolse && !floorVal) continue;
+        let gbn = cols[0].trim();
         if (gbn.includes('매매') && gbn.includes('전세')) gbn = '매매+전세';
         const type = (cols[5] && cols[5] !== '#REF!') ? cols[5] : (cols[9] && cols[9] !== '#REF!' ? cols[9] : null);
         if (!type) continue;
-        const dir = cols[10] ? cols[10].replace('향', '') : '';
-        if (!data[dongVal]) data[dongVal] = {};
-        if (!data[dongVal][floorVal]) data[dongVal][floorVal] = [];
-        data[dongVal][floorVal].push({
-          gbn, type, dir,
-          bun:    parseNum(cols[3]),
-          ext:    parseNum(cols[4]),
-          prem:   parseNum(cols[6]),
-          jeonse: parseNum(cols[7], true),
-          total:  parseNum(cols[8], true),
-        });
+
+        if (isWolse) {
+          const parts = (cols[7] || '').split('/');
+          const deposit = parseManWon(parts[0]);
+          const rent    = parseNum(parts[1]);
+          if (!wolse[dongVal]) wolse[dongVal] = [];
+          wolse[dongVal].push({ type, floorLabel: floorRaw, deposit, rent });
+        } else {
+          const dir = cols[10] ? cols[10].replace('향', '') : '';
+          if (!data[dongVal]) data[dongVal] = {};
+          if (!data[dongVal][floorVal]) data[dongVal][floorVal] = [];
+          data[dongVal][floorVal].push({
+            gbn, type, dir,
+            bun:    parseNum(cols[3]),
+            ext:    parseNum(cols[4]),
+            prem:   parseNum(cols[6]),
+            jeonse: parseNum(cols[7], true),
+            total:  parseNum(cols[8], true),
+          });
+        }
       }
-      return data;
+      return { data, wolse };
     }
 
     let listingsData = {};
+    let wolseData    = {};
 
     // ── 타입 배경 클래스 ──────────────────────────────────────
     const TYPE_CLASS = { '59A': 'type-59A', '59B': 'type-59B', '84': 'type-84' };
@@ -874,15 +944,84 @@
       }
     }
 
+    // ── 월세 섹션 렌더링 ─────────────────────────────────────
+    function renderWolse() {
+      const section = document.getElementById('wolse-section');
+      const list    = document.getElementById('wolse-list');
+      const items   = (wolseData[dong] || []);
+
+      if (currentFilter === 'sale' || currentFilter === 'lease') {
+        section.style.display = 'none';
+        return;
+      }
+
+      if (items.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+
+      list.innerHTML = '';
+      const floorOrder = { '저': 1, '중': 2, '고': 3 };
+      const sorted = [...items].sort((a, b) => (floorOrder[a.floorLabel] || 9) - (floorOrder[b.floorLabel] || 9));
+
+      sorted.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'wolse-item';
+        el.innerHTML = `
+          <div class="wolse-left">
+            <span class="wolse-floor">${item.floorLabel}층</span>
+            <span class="wolse-type t${item.type}">${item.type}형</span>
+          </div>
+          <div class="wolse-price">
+            <div class="wolse-price-main">월 ${(item.rent ?? 0).toLocaleString()}만원</div>
+            <div class="wolse-price-sub">보증금 ${fmt(item.deposit)}</div>
+          </div>
+        `;
+        el.addEventListener('click', () => openWolsePopup(item));
+        list.appendChild(el);
+      });
+
+      section.style.display = currentFilter === 'rent' ? 'block' : 'block';
+    }
+
+    // ── 월세 팝업 ─────────────────────────────────────────────
+    function openWolsePopup(item) {
+      const overlay = document.getElementById('popup-overlay');
+      const titleEl = document.getElementById('popup-title');
+      const itemsEl = document.getElementById('popup-items');
+
+      titleEl.textContent = `${dong}동 ${item.floorLabel}층 ${item.type}형 월세`;
+      itemsEl.innerHTML = `
+        <div class="popup-item">
+          <div class="popup-badges">
+            <span class="txn-badge" style="background:#fde8d8;color:#E07D3C">월세</span>
+            <span class="type-badge t${item.type}">${item.type}형</span>
+          </div>
+          <div class="popup-row">
+            <span class="popup-label">보증금</span>
+            <span class="popup-val">${fmt(item.deposit)}</span>
+          </div>
+          <div class="popup-row">
+            <span class="popup-label">월세</span>
+            <span class="popup-val" style="color:#E07D3C">월 ${(item.rent ?? 0).toLocaleString()}만원</span>
+          </div>
+        </div>
+      `;
+      overlay.classList.add('show');
+    }
+
     (async function init() {
       try {
         const resp = await fetch(CSV_URL);
         const text = await resp.text();
-        listingsData = buildListingsData(text);
+        const parsed = buildListingsData(text);
+        listingsData = parsed.data;
+        wolseData    = parsed.wolse;
       } catch (e) {
         console.error('데이터 로드 실패', e);
       }
       buildGrid();
+      renderWolse();
     })();
 
     // ── 필터 탭 이벤트 ───────────────────────────────────────
@@ -893,7 +1032,13 @@
           t.className = 'f-tab';
         });
         tab.className = `f-tab active-${currentFilter}`;
-        buildGrid();
+        if (currentFilter === 'rent') {
+          document.getElementById('grid-wrap').style.display = 'none';
+        } else {
+          document.getElementById('grid-wrap').style.display = '';
+          buildGrid();
+        }
+        renderWolse();
       });
     });
 
