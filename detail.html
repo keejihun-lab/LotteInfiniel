@@ -940,6 +940,11 @@
               gbnLabel  = '전세';
               priceItem = filtered.find(i => i.jeonse) || filtered[0];
               priceText = filtered.length > 1 ? filtered.length + '건' : fmtShort(priceItem.jeonse);
+            } else if (hasRent) {
+              cellClass = 'listing-rent';
+              gbnLabel  = filtered.length + '건';
+              priceItem = filtered[0];
+              priceText = '';
             } else {
               cellClass = 'listing-mixed';
               gbnLabel  = filtered.length + '건';
