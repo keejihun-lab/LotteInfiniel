@@ -388,14 +388,17 @@ function parseCSV(text) {
     }
     cols.push(cur.trim());
     if (cols.length < 9) continue;
+    const dong  = parseNum(cols[1]);
+    const floor = parseNum(cols[2]);
+    if (!dong || !floor) continue;
     let gbn = cols[0];
     if (gbn.includes('매매') && gbn.includes('전세')) gbn = '매매+전세';
     const type = (cols[5] && cols[5] !== '#REF!') ? cols[5] : (cols[9] && cols[9] !== '#REF!' ? cols[9] : null);
     if (!type) continue;
     rows.push({
       gbn,
-      dong:  parseNum(cols[1]),
-      floor: parseNum(cols[2]),
+      dong,
+      floor,
       type,
       bun:   parseNum(cols[3]),
       ext:   parseNum(cols[4]),

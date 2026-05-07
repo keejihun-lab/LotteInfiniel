@@ -488,6 +488,59 @@
       background: #f4f2ff;
     }
 
+    /* 사무소 정보 푸터 */
+    .office-footer {
+      margin: 0 16px 32px;
+      background: linear-gradient(135deg, #f7f6ff 0%, #eef4ff 100%);
+      border: 1.5px solid #e0dcff;
+      border-radius: 16px;
+      padding: 20px 20px 18px;
+    }
+    .office-name {
+      font-size: 16px;
+      font-weight: 800;
+      color: #1a1a1a;
+      margin-bottom: 14px;
+      letter-spacing: -0.3px;
+    }
+    .office-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .office-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #444;
+    }
+    .office-row .o-icon {
+      font-size: 15px;
+      width: 20px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .office-row .o-label {
+      color: #999;
+      font-size: 11px;
+      font-weight: 600;
+      min-width: 44px;
+    }
+    .office-row .o-val {
+      font-weight: 600;
+      color: #222;
+    }
+    .office-row .o-val.phone {
+      color: #5B4ED8;
+      font-weight: 700;
+    }
+    .office-divider {
+      height: 1px;
+      background: #e0dcff;
+      margin: 12px 0;
+    }
+
     /* 평면도 섹션 */
     .floor-plan-section {
       padding: 0 16px 28px;
@@ -620,6 +673,34 @@
 
   </div>
 
+  <!-- ── 사무소 정보 ─────────────────────────── -->
+  <div class="office-footer">
+    <div class="office-name">더행복공인중개사사무소</div>
+    <div class="office-rows">
+      <div class="office-row">
+        <span class="o-icon">📞</span>
+        <span class="o-label">전화</span>
+        <span class="o-val phone">010-6402-2328</span>
+      </div>
+      <div class="office-divider"></div>
+      <div class="office-row">
+        <span class="o-icon">👤</span>
+        <span class="o-label">대표</span>
+        <span class="o-val">이지훈</span>
+      </div>
+      <div class="office-row">
+        <span class="o-icon">📋</span>
+        <span class="o-label">등록번호</span>
+        <span class="o-val">26500-2026-00034</span>
+      </div>
+      <div class="office-row">
+        <span class="o-icon">📍</span>
+        <span class="o-label">주소</span>
+        <span class="o-val">부산 수영구 광안동 120-261</span>
+      </div>
+    </div>
+  </div>
+
   <script>
     // y값: 기존 위치에서 161px 위로 이동 (161/1920 ≈ 8.4% 감소)
     const buildings = [
@@ -730,6 +811,7 @@
         }
         cols.push(cur.trim());
         if (cols.length < 9) continue;
+        if (!parseNum(cols[1]) || !parseNum(cols[2])) continue;
         let gbn = cols[0];
         if (gbn.includes('매매') && gbn.includes('전세')) gbn = '매매+전세';
         const type = (cols[5] && cols[5] !== '#REF!') ? cols[5] : (cols[9] && cols[9] !== '#REF!' ? cols[9] : null);
